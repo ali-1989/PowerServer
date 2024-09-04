@@ -1,0 +1,20 @@
+name: power_server
+description: A REST API framework. Light and powerful. Taking advantage of the alfred package. Provided by the Avicenna group.
+version: 0.1.0+1
+repository: https://github.com/avicenna/power_server
+
+environment:
+  sdk: '>=3.0.0'
+
+dependencies:
+  mime: ^1.0.5
+  mime_type: ^1.0.0
+  queue: ^3.1.0
+  path: ^1.9.0
+  meta: ^1.15.0
+
+dev_dependencies:
+  test: any
+  web_socket_channel: any
+  http: any
+  lints: any

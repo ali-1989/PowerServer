@@ -1,0 +1,1 @@
+enum PathDecodeMode { AllButSlash, SlashOnly }
