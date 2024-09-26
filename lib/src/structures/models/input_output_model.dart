@@ -71,9 +71,11 @@ class InputOutputModel {
       //await request.response.flush(); no. take error
     }
     catch(e, s){
-      exception = e;
-      stackTrace = s;
-      server.logHandler?.call('PowerServer: Error in closing file. $e', LogType.error, inOut: this);
+      if(e is! FileSystemException || !(e as IOException).toString().contains('File closed')){
+        exception = e;
+        stackTrace = s;
+        server.logHandler?.call('PowerServer: Error in closing file. $e', LogType.error, inOut: this);
+      }
     }
 
     try{

@@ -124,6 +124,7 @@ class PowerServer {
       final inOut = InputOutputModel(this, request, request.response);
       logHandler?.call('D01: [${request.method}] ${request.uri.toString()}', LogType.debug, inOut: inOut);
 
+      // asynchronous unCatch exception
       void _zonedGuardedCatch(obj, stack) async {
         await onInternalError?.call(obj, stack, inOut);
       }
