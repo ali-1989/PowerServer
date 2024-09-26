@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:power_server/power_server.dart';
-import 'package:power_server/src/power_server.dart';
-import 'package:power_server/src/core/websocket_session.dart';
 import 'package:power_server/src/structures/errors/not_found_exception.dart';
 
 class Responsive {
@@ -84,6 +82,7 @@ class Responsive {
       return;
     }
 
+
     try {
       if (userData.toJson != null) {
         _setContentType(ContentType.json);
@@ -110,7 +109,7 @@ class Responsive {
     catch (e, s){
       _inOut.exception = e;
       _inOut.stackTrace = s;
-      _inOut.server.onInternalError?.call(e, s, null);
+      _inOut.server.onInternalError?.call(e, s, _inOut);
     }
   }
 }

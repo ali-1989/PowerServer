@@ -10,6 +10,7 @@ class InputOutputModel {
   HttpResponse response;
   late Responsive _responsive;
   bool _isDone = false;
+  bool _isClosed = false;
   bool isWebsocket = false;
   int _downloadSpeedPerKb = 10000;
   WebSocket? webSocket;
@@ -61,6 +62,10 @@ class InputOutputModel {
   }
 
   Future<dynamic> close() async {
+    if(_isClosed){
+      return;
+    }
+
     try{
       _accessFile?.closeSync();
       //await request.response.flush(); no. take error
@@ -68,6 +73,7 @@ class InputOutputModel {
     catch(e, s){
       exception = e;
       stackTrace = s;
+      server.logHandler?.call('PowerServer: Error in closing file. $e', LogType.error, inOut: this);
     }
 
     try{
@@ -76,9 +82,20 @@ class InputOutputModel {
     catch(e, s){
       exception = e;
       stackTrace = s;
+      server.logHandler?.call('PowerServer: Error in closing WebSocket. $e', LogType.error, inOut: this);
     }
 
-    return request.response.close();
+    try{
+      return request.response.close();
+    }
+    catch(e, s){
+      exception = e;
+      stackTrace = s;
+      server.logHandler?.call('PowerServer: Error in closing Socket. $e', LogType.error, inOut: this);
+    }
+    finally {
+      _isClosed = true;
+    }
   }
 
   InOutStore get keyValueStore {
@@ -127,7 +144,7 @@ class InputOutputModel {
   /// Parse the body, and convert it to a json list
   Future<List<dynamic>> get bodyAsJsonList async => (await body) as List;
 
-  static void _startService(PowerServer powerServer){
+  static void _startCloseSocketsService(PowerServer powerServer){
     if(_timer != null && _timer!.isActive){
       return;
     }
@@ -136,17 +153,17 @@ class InputOutputModel {
       final socketNow = DateTime.now().subtract(powerServer.maxTimeForUnClosedSocket);
       final websocketNow = DateTime.now().subtract(powerServer.maxTimeForUnClosedWebSocket);
 
-      for(final x in _inOutHolder){
-        if(x.isWebsocket){
-          if(x.startTime.isBefore(websocketNow)){
+      for(final inOut in _inOutHolder){
+        if(inOut.isWebsocket){
+          if(inOut.startTime.isBefore(websocketNow)){
             powerServer.logHandler?.call('W2: An unclosed websocket was found.', LogType.warning);
-            x.close();
+            inOut.close();
           }
         }
 
-        else if(x.startTime.isBefore(socketNow)){
+        else if(inOut.startTime.isBefore(socketNow)){
           powerServer.logHandler?.call('W1: An unclosed socket was found.', LogType.warning);
-          x.close();
+          inOut.close();
         }
       }
     });

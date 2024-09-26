@@ -27,7 +27,7 @@ part 'package:power_server/src/structures/models/input_output_model.dart';
 
 
 typedef RouteHandler = FutureOr<void> Function(InputOutputModel inOut);
-typedef ErrorHandler = FutureOr<void> Function(Object error, StackTrace? stackTrace, InputOutputModel? inOut);
+typedef ErrorHandler = FutureOr<void> Function(Object error, StackTrace? stackTrace, InputOutputModel inOut);
 typedef FileDownloadHandler = FutureOr<bool> Function(InputOutputModel inOut, File file);
 typedef LogHandler = void Function(String text, LogType type, {InputOutputModel? inOut});
 typedef PrepareFileUploadPath = FutureOr<String> Function(InputOutputModel inOut, FileUploadFields fields);
@@ -97,14 +97,13 @@ class PowerServer {
     int processingQueue = 50,
   })
       : requestQueue = Queue(parallel: processingQueue),
-        methodRouter = MethodRouter() {
-
+        methodRouter = MethodRouter()
+  {
     final t = File(Platform.script.path);
     currentPath = t.parent.path.normalizeFilePath;
   }
 
-  /// Call this function to fire off the server.
-  ///
+
   Future<HttpServer> listen([
     int port = 3000,
     dynamic bindIp = '0.0.0.0',
@@ -122,16 +121,25 @@ class PowerServer {
     server.idleTimeout = idleTimeout;
 
     server.listen((HttpRequest request) {
-      requestQueue.add(() => _incomingRequest(request));
+      final inOut = InputOutputModel(this, request, request.response);
+      logHandler?.call('D01: [${request.method}] ${request.uri.toString()}', LogType.debug, inOut: inOut);
+
+      void _zonedGuardedCatch(obj, stack) async {
+        await onInternalError?.call(obj, stack, inOut);
+      }
+
+      runZonedGuarded(() {
+        requestQueue.add(() => _incomingRequest(inOut));
+      }, _zonedGuardedCatch);
     },
       onError: (e){
-        logHandler?.call('E06: listen error. [on port: ${server.port}]  $e', LogType.error);
+        logHandler?.call('E06: PowerServer listen error. [on port: ${server.port}]  $e', LogType.error);
       },
       cancelOnError: false,
     );
 
-    logHandler?.call('HTTP Server listening on ${server.address}:${server.port}, currentPath:$currentPath', LogType.info);
-    InputOutputModel._startService(this);
+    logHandler?.call('PowerServer: HTTP Server listening on ${server.address}:${server.port}, currentPath:$currentPath', LogType.info);
+    InputOutputModel._startCloseSocketsService(this);
 
     return httpServer = server;
   }
@@ -155,33 +163,36 @@ class PowerServer {
     server.idleTimeout = idleTimeout;
 
     server.listen((HttpRequest request) {
-      requestQueue.add(() => _incomingRequest(request));
+      final inOut = InputOutputModel(this, request, request.response);
+      logHandler?.call('D01: [${request.method}] ${request.uri.toString()}', LogType.debug, inOut: inOut);
+
+      void _zonedGuardedCatch(obj, stack) async {
+        await onInternalError?.call(obj, stack, inOut);
+      }
+
+      runZonedGuarded(() {
+        requestQueue.add(() => _incomingRequest(inOut));
+      }, _zonedGuardedCatch);
     },
       onError: (e){
-        logHandler?.call('E06: listen error. [on port: ${server.port}]  $e', LogType.error);
+        logHandler?.call('E06: PowerServer listening error. [on port: ${server.port}]  $e', LogType.error);
       },
       cancelOnError: false,
     );
 
-    logHandler?.call('HTTPS Server listening on ${server.address}:${server.port}, currentPath:$currentPath', LogType.info);
-    InputOutputModel._startService(this);
+    logHandler?.call('PowerServer: HTTPS Server listening on ${server.address}:${server.port}, currentPath:$currentPath', LogType.info);
+    InputOutputModel._startCloseSocketsService(this);
 
     return httpServer = server;
   }
 
   /// Handles and routes an incoming request
-  Future<void> _incomingRequest(HttpRequest request) async {
-    final inOut = InputOutputModel(this, request, request.response);
-    logHandler?.call('D01: [${request.method}] ${request.uri.toString()}', LogType.debug, inOut: inOut);
+  Future<void> _incomingRequest(InputOutputModel inOut) async {
     inOut.setDownloadSpeed(downloadSpeedKbPerSec);
 
-    /// --- on start
-    for (final beforeListener in _beforeRoutingListeners) {
-      beforeListener(inOut);
-    }
 
-    /// --- after done
-    unawaited(request.response.done.then((dynamic _) {
+    /// --- after response done
+    unawaited(inOut.request.response.done.then((dynamic _) {
       inOut.isDone = true;
 
       for (final doneListener in _onDoneListeners) {
@@ -193,11 +204,17 @@ class PowerServer {
     }));
 
 
-    final matchesFound = _foundMatch(request.uri.toString(), methodRouter.routes, _detectMethod(request));
+    /// --- on pre-routing
+    for (final beforeRoute in _beforeRoutingListeners) {
+      beforeRoute(inOut);
+    }
+
+    final httpMethod = _detectMethod(inOut.request);
+    final matchesFound = _foundMatch(inOut.request.uri.toString(), methodRouter.routes, httpMethod);
 
     try {
       if (matchesFound.isEmpty) {
-        logHandler?.call('D02: No matching route found. ${request.uri.toString()}', LogType.debug, inOut: inOut);
+        logHandler?.call('D02: No matching route found. ${inOut.request.uri.toString()}', LogType.debug, inOut: inOut);
         await _respondNotFound(inOut);
       }
       else {
@@ -209,19 +226,21 @@ class PowerServer {
           inOut.routeMatch = match;
 
           logHandler?.call('D03: current matched route: ${match.methodRoute.route}', LogType.debug, inOut: inOut);
+          /// this line is handler for inputs
           await match.methodRoute.handler.call(inOut);
         }
 
+
         ///--- check is done
         if (!inOut.isDone) {
-          if (request.response.contentLength < 0 /*&& !nonWildcardRouteMatch*/) {
+          if (inOut.request.response.contentLength < 0 /*&& !nonWildcardRouteMatch*/) {
             await _respondNotFound(inOut);
           }
-
-          if(!inOut.isWebsocket) {
-            await inOut.close();
-          }
         }
+      }
+
+      if(!inOut.isWebsocket) {
+        await inOut.close();
       }
     }
     on NotFoundException catch (e1) {
@@ -231,8 +250,8 @@ class PowerServer {
 
     on ResponseException catch (e2) {
       try {
-        request.response.statusCode = e2.statusCode;
-        request.response.write(e2.response?.toString());
+        inOut.request.response.statusCode = e2.statusCode;
+        inOut.request.response.write(e2.response?.toString());
       }
       on StateError catch (e, s) {
         inOut.exception = e;
@@ -256,8 +275,8 @@ class PowerServer {
 
       if (onInternalError == null) {
         try {
-          request.response.statusCode = 500;
-          request.response.write(e3);
+          inOut.request.response.statusCode = 500;
+          inOut.request.response.write(e3);
         }
         catch (e, s) {
           inOut.exception = e;
