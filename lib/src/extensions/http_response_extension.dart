@@ -11,45 +11,32 @@ extension HttpResponseExtension on HttpResponse {
   }
 
   /// Set the content type from the extension ie. 'pdf'
-  void setContentTypeFromExtension(String extension) {
+  bool setContentTypeFromExtension(String extension) {
     final mime = mimeFromExtension(extension);
-
+    
     if (mime != null) {
       final split = mime.split('/');
       headers.contentType = ContentType(split[0], split[1]);
+      return true;
     }
+
+    return false;
   }
 
-  void setContentTypeFromFile(File file) {
-    final setContentType = headers.contentType;
+  void setContentTypeFromFileIfNotExist(File file) {
+    final headerContentType = headers.contentType;
 
-    if (setContentType == null || setContentType.mimeType == 'text/plain') {
-      final fileContentType = file.contentType;
-
-      if (fileContentType != null) {
+    if (headerContentType == null || headerContentType.mimeType == 'text/plain') {
+      if (file.contentType != null) {
         headers.contentType = file.contentType;
       }
       else {
         final extension = file.path.split('.').last;
-        final suggestedMime = mimeFromExtension(extension);
 
-        if (suggestedMime != null) {
-          setContentTypeFromExtension(extension);
-        } else {
+        if (!setContentTypeFromExtension(extension)) {
           headers.contentType = ContentType.binary;
         }
       }
     }
   }
-
-  /*Future json(Object? json) {
-    headers.contentType = ContentType.json;
-    write(jsonEncode(json));
-    return close();
-  }
-
-  Future send(Object? data) {
-    write(data);
-    return close();
-  }*/
 }

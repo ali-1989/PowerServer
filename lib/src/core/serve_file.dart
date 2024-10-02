@@ -19,16 +19,25 @@ class ServeFile {
     inOut.response.bufferOutput = false;
 
 
-    /// html or others files
-    if(_getDotExtension(file.path).endsWith('html')){
-      inOut.response.headers.add('Content-Type', 'text/html; charset=utf-8');
+    inOut.response.headers.add('Accept-Ranges', 'bytes');
+    inOut.response.headers.add('Content-Encoding', 'identity');
+    inOut.response.headers.set('X-Powered-By', 'Dart, power_server, avicenna');
+
+    final fileFormat = file.path.split('.').last;
+
+    /// html
+    if(fileFormat == 'html'){
+      inOut.response.headers.add(HttpHeaders.contentTypeHeader, 'text/html; charset=utf-8');//ContentType.html
     }
     else {
-      inOut.response.setContentTypeFromFile(file);
+      if(inOut.server.mimeTypes.keys.contains(fileFormat)){
+        inOut.response.headers.add(HttpHeaders.contentTypeHeader, inOut.server.mimeTypes[fileFormat]);
+      }
+      else {
+        inOut.response.setContentTypeFromFileIfNotExist(file);
+      }
+
       inOut.response.setDownloadHeader(filename: _getFileName(file.path));
-      inOut.response.headers.add('Accept-Ranges', 'bytes');
-      inOut.response.headers.add('Content-Encoding', 'identity');
-      inOut.response.headers.set('X-Powered-By', 'Dart, power_server, avicenna');
     }
 
 

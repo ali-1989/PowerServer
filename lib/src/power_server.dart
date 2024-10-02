@@ -53,6 +53,8 @@ class PowerServer {
   Duration maxTimeForUnClosedSocket = Duration(hours: 1);
   /// The maximum time a websocket can remain open.
   Duration maxTimeForUnClosedWebSocket = Duration(hours: 5);
+  /// Set files mime type
+  final Map mimeTypes = {};
 
   /// Incoming request queue
   /// Set the number of simultaneous connections being processed at any one time
@@ -211,11 +213,12 @@ class PowerServer {
     }
 
     final httpMethod = _detectMethod(inOut.request);
-    final matchesFound = _foundMatch(inOut.request.uri.toString(), methodRouter.routes, httpMethod);
+    final uri = inOut.request.uri.toString();
+    final matchesFound = _foundMatch(uri, methodRouter.routes, httpMethod);
 
     try {
       if (matchesFound.isEmpty) {
-        logHandler?.call('D02: No matching route found. ${inOut.request.uri.toString()}', LogType.debug, inOut: inOut);
+        logHandler?.call('D02: No matching route found. $uri', LogType.debug, inOut: inOut);
         await _respondNotFound(inOut);
       }
       else {
@@ -225,8 +228,8 @@ class PowerServer {
           }
 
           inOut.routeMatch = match;
-
           logHandler?.call('D03: current matched route: ${match.methodRoute.route}', LogType.debug, inOut: inOut);
+
           /// this line is handler for inputs
           await match.methodRoute.handler.call(inOut);
         }
@@ -308,8 +311,19 @@ class PowerServer {
         continue;
       }
 
+      RegExpMatch? match;
+
       // Match against route RegExp and capture params if valid
-      final match = route.matcher.firstMatch(inputPath);
+
+      if(route.paramKey != null){
+        final pos = inputPath.lastIndexOf('/');
+        final url = inputPath.substring(0, pos);
+        route.paramValue = inputPath.substring(pos+1);
+        match = route.matcher.firstMatch(url);
+      }
+      else {
+        match = route.matcher.firstMatch(inputPath);
+      }
 
       if (match != null) {
         final routeMatch = HttpRouteMatch.tryParse(route, match);

@@ -9,6 +9,8 @@ import 'package:power_server/src/structures/errors/duplicate_parameter_exception
 class MethodRoute {
   final HttpMethod method;
   final String route;
+  late final String? paramKey;
+  late final String? paramValue;
   final RouteHandler handler;
   late final RegExp matcher;
   final bool usesWildcard;
@@ -22,9 +24,19 @@ class MethodRoute {
     /// VERY happy for a more elegant solution here than some random escape
     /// sequence.
     const escapeChar = '@@@^';
-    final escapedPath = route.normalizeUrl.replaceAll('\\', escapeChar);
+    var escapedPath = route.normalizeUrl.replaceAll('\\', escapeChar);
     var segments = Uri.tryParse('/${escapedPath}')?.pathSegments ?? [route.normalizeUrl];
     segments = segments.map((e) => e.replaceAll(escapeChar, '\\')).toList();
+
+    if(escapedPath.contains('/:')){
+      int pos = escapedPath.indexOf('\/\:');
+      final temp = escapedPath.substring(0, pos);
+      paramKey = escapedPath.substring(pos+2);
+      escapedPath = temp;
+    }
+    else {
+      paramKey = null;
+    }
 
     var pattern = '^';
 
