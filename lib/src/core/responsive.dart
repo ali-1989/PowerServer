@@ -13,6 +13,7 @@ class Responsive {
   Future<void> sendAndClose(dynamic data) async {
     await send(data);
 
+    /// close after sent
     if(isSend) {
       return _inOut.close();
     }
@@ -21,18 +22,23 @@ class Responsive {
   // _inOut.response.reasonPhrase >> StateError
 
   Future<void> send(dynamic userData) async {
-    if(userData is String){
+    if(isSend) {
+      return;
+    }
+
+    if (userData is String) {
       _inOut.response.write(userData);
       isSend = true;
     }
 
-    else if(userData is num){
+    else if (userData is num) {
       _inOut.response.write('$int');
       isSend = true;
     }
 
-    else if(userData is List<int>){
-      if (_inOut.response.headers.contentType == null || _inOut.response.headers.contentType!.value == 'text/plain') {
+    else if (userData is List<int>) {
+      if (_inOut.response.headers.contentType == null ||
+          _inOut.response.headers.contentType!.value == 'text/plain') {
         _setContentType(ContentType.binary);
       }
 
@@ -40,19 +46,19 @@ class Responsive {
       isSend = true;
     }
 
-    else if(userData is Map){
+    else if (userData is Map) {
       _setContentType(ContentType.json);
       _inOut.response.write(jsonEncode(userData));
       isSend = true;
     }
 
-    else if(userData is File){
+    else if (userData is File) {
       if (userData.existsSync()) {
         await ServeFile.serveFile(userData, _inOut);
         isSend = true;
       }
       else {
-        throw NotFoundException(_inOut.route?? userData.path);
+        throw NotFoundException(_inOut.route ?? userData.path);
       }
     }
 
@@ -61,16 +67,16 @@ class Responsive {
       isSend = true;
     }*/
 
-    else if(userData is WebSocketSession){
+    else if (userData is WebSocketSession) {
       _inOut.isWebsocket = true;
       //final ws = await WebSocketTransformer.upgrade(_inOut.request).catchError((error) => null);
       final ws = await WebSocketTransformer.upgrade(_inOut.request)
           .then<dynamic>((data) => data)
           .onError((error, stackTrace) => error);
 
-      if(ws is! WebSocket){
+      if (ws is! WebSocket) {
         _inOut.exception = ws;
-        _inOut.server.logHandler?.call(ws?.toString()?? '', LogType.error);
+        _inOut.server.logHandler?.call(ws?.toString() ?? '', LogType.error);
         _inOut.close();
       }
       else {
@@ -81,25 +87,25 @@ class Responsive {
 
       return;
     }
-
-
-    try {
-      if (userData.toJson != null) {
-        _setContentType(ContentType.json);
-        _inOut.response.write(jsonEncode(userData.toJson()));
-        isSend = true;
+    else {
+      try {
+        if (userData.toJson != null) {
+          _setContentType(ContentType.json);
+          _inOut.response.write(jsonEncode(userData.toJson()));
+          isSend = true;
+        }
       }
-    }
-    on NoSuchMethodError {/**/}
+      on NoSuchMethodError {/**/}
 
-    try {
-      if (userData.toJSON != null) {
-        _setContentType(ContentType.json);
-        _inOut.response.write(jsonEncode(userData.toJSON()));
-        isSend = true;
+      try {
+        if (userData.toJSON != null) {
+          _setContentType(ContentType.json);
+          _inOut.response.write(jsonEncode(userData.toJSON()));
+          isSend = true;
+        }
       }
+      on NoSuchMethodError /*catch (e)*/ {/**/}
     }
-    on NoSuchMethodError /*catch (e)*/ {/**/}
   }
 
   void _setContentType(ContentType ct) {
@@ -109,7 +115,8 @@ class Responsive {
     catch (e, s){
       _inOut.exception = e;
       _inOut.stackTrace = s;
-      _inOut.server.onInternalError?.call(e, s, _inOut);
+      _inOut.server.logHandler?.call('E: $e', LogType.error, inOut: _inOut);
+      //_inOut.server.onInternalError?.call(e, s, _inOut);
     }
   }
 }

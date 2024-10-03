@@ -3,18 +3,7 @@ part of 'package:power_server/src/power_server.dart';
 class ServeFile {
   static final RegExp _rangeRex = RegExp(r'^bytes=\s*\d*-\d*(,\d*-\d*)*$');
 
-  static Future<void> serveFile(File file, InputOutputModel inOut) async {
-    if(!(await inOut.server.fileDownloadChecker?.call(inOut, file)?? true)){
-      inOut.response.statusCode = 403;
-      inOut.response.write('Can not access.');
-      return;
-    }
-
-    var modifier = await file.lastModified();
-    modifier = modifier.toUtc();
-    final formattedModified = DF.formatDate(modifier, [DF.D, ', ', DF.d, ' ', DF.M, ' ', DF.yyyy, ' ', DF.HH, ':', DF.nn, ':', DF.ss, ' ', DF.z]);
-    final ifRange = inOut.request.headers.value('If-Range');
-    final range = inOut.request.headers.value('range');
+  static void setHeaderAsFile(InputOutputModel inOut, {String? fileName, File? file}){
 
     inOut.response.bufferOutput = false;
 
@@ -22,28 +11,41 @@ class ServeFile {
     inOut.response.headers.add('Content-Encoding', 'identity');
     inOut.response.headers.set('X-Powered-By', 'Dart, power_server, avicenna');
 
-    final fileFormat = file.path.split('.').last;
+    final fName = fileName ?? file!.path.split(p.separator).last;
+    final fileFormat = fName.split('.').last;
 
-    /// html
-    if(fileFormat == 'html'){
-      inOut.response.headers.add(HttpHeaders.contentTypeHeader, 'text/html; charset=utf-8');//ContentType.html
+    if(inOut.server.mimeTypes.keys.contains(fileFormat)){
+      inOut.response.headers.add(HttpHeaders.contentTypeHeader, inOut.server.mimeTypes[fileFormat]);
     }
     else {
-      if(inOut.server.mimeTypes.keys.contains(fileFormat)){
-        inOut.response.headers.add(HttpHeaders.contentTypeHeader, inOut.server.mimeTypes[fileFormat]);
-      }
-      else {
-        inOut.response.setContentTypeFromFileIfNotExist(file);
-      }
-
-      inOut.response.setDownloadHeader(filename: _getFileName(file.path));
+      inOut.response.setContentTypeFromFileIfNotExist(fileContentType: file?.contentType, fileExtension: fileFormat);
     }
+
+    if(fileFormat != 'html'){
+      inOut.response.setDownloadHeader(filename: fName);//_getFileName(file.path)
+    }
+  }
+
+  static Future<void> serveFile(File file, InputOutputModel inOut) async {
+    if(!(await inOut.server.fileDownloadChecker?.call(inOut, file)?? true)){
+      inOut.response.statusCode = 403;
+      inOut.response.write('Can not access.');
+      return;
+    }
+
+    setHeaderAsFile(inOut, file: file);
+
+    final ifRange = inOut.request.headers.value('If-Range');
+    final range = inOut.request.headers.value('range');
 
     /// ETag or LastModified
     if(ifRange != null && ifRange.isNotEmpty) {
       inOut.response.headers.set('ETag', ifRange);
     }
     else {
+      final modifier = await file.lastModified();
+      final formattedModified = DF.formatDate(modifier.toUtc(), [DF.D, ', ', DF.d, ' ', DF.M, ' ', DF.yyyy, ' ', DF.HH, ':', DF.nn, ':', DF.ss, ' ', DF.z]);
+
       inOut.response.headers.set('Last-Modified', formattedModified);
     }
 
@@ -68,7 +70,7 @@ class ServeFile {
       inOut._accessFile!.closeSync();
     }
 
-    /// if part
+    /// if request part of file
     else {
       if(!_rangeRex.hasMatch(range!)){
         inOut.response.statusCode = 416;

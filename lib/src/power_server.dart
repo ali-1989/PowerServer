@@ -16,6 +16,7 @@ import 'package:power_server/src/structures/errors/response_exception.dart';
 import 'package:power_server/src/structures/errors/not_found_exception.dart';
 import 'package:queue/queue.dart';
 
+import 'package:power_server/src/extensions/file_extension.dart';
 import 'package:power_server/src/body_parser/http_request_body.dart';
 import 'package:power_server/src/core/responsive.dart';
 import 'package:power_server/src/extensions/http_response_extension.dart';
@@ -103,6 +104,8 @@ class PowerServer {
   {
     final t = File(Platform.script.path);
     currentPath = t.parent.path.normalizeFilePath;
+
+    mimeTypes['html'] = 'text/html; charset=utf-8';
   }
 
 
@@ -128,7 +131,7 @@ class PowerServer {
 
       // asynchronous unCatch exception
       void _zonedGuardedCatch(obj, stack) async {
-        await onInternalError?.call(obj, stack, inOut);
+        await _callInternalError(obj, stack, inOut);
       }
 
       runZonedGuarded(() {
@@ -170,7 +173,7 @@ class PowerServer {
       logHandler?.call('D01: [${request.method}] ${request.uri.toString()}', LogType.debug, inOut: inOut);
 
       void _zonedGuardedCatch(obj, stack) async {
-        await onInternalError?.call(obj, stack, inOut);
+        await _callInternalError(obj, stack, inOut);
       }
 
       runZonedGuarded(() {
@@ -274,20 +277,7 @@ class PowerServer {
     catch (e3, s) {
       inOut.exception = e3;
       inOut.stackTrace = s;
-      logHandler?.call('E03: $e3', LogType.error, inOut: inOut);
-      await onInternalError?.call(e3, s, inOut);
-
-      if (onInternalError == null) {
-        try {
-          inOut.request.response.statusCode = 500;
-          inOut.request.response.write(e3);
-        }
-        catch (e, s) {
-          inOut.exception = e;
-          inOut.stackTrace = s;
-          logHandler?.call('E04: $e', LogType.error, inOut: inOut);
-        }
-      }
+      await _callInternalError(e3, s, inOut);
 
       await inOut.close();
     }
@@ -346,6 +336,32 @@ class PowerServer {
     }
 
     await inOut.close();
+  }
+
+  /// Responds request with a NotFound response
+  Future<void> _callInternalError(Object error, StackTrace? stack, InputOutputModel inOut) async {
+    if(inOut._isInternalErrorCall){
+      return;
+    }
+
+    inOut._isInternalErrorCall = true;
+
+    if (onInternalError != null) {
+      await onInternalError!.call(error, stack, inOut);
+    }
+    else {
+      try {
+        inOut.request.response.statusCode = 500;
+        inOut.request.response.write(error);
+      }
+      catch (e, s) {
+        inOut.exception = e;
+        inOut.stackTrace = s;
+        logHandler?.call('E04: $e', LogType.error, inOut: inOut);
+      }
+
+      await inOut.close();
+    }
   }
 
   /// Close the server and clean up any resources

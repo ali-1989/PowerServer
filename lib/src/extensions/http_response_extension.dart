@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:mime_type/mime_type.dart';
 
-import 'file_extension.dart';
-
 
 extension HttpResponseExtension on HttpResponse {
   void setDownloadHeader({required String filename}) {
@@ -23,17 +21,15 @@ extension HttpResponseExtension on HttpResponse {
     return false;
   }
 
-  void setContentTypeFromFileIfNotExist(File file) {
+  void setContentTypeFromFileIfNotExist({ContentType? fileContentType, required String fileExtension}) {
     final headerContentType = headers.contentType;
 
     if (headerContentType == null || headerContentType.mimeType == 'text/plain') {
-      if (file.contentType != null) {
-        headers.contentType = file.contentType;
+      if (fileContentType != null) {
+        headers.contentType = fileContentType;
       }
       else {
-        final extension = file.path.split('.').last;
-
-        if (!setContentTypeFromExtension(extension)) {
+        if (!setContentTypeFromExtension(fileExtension)) {
           headers.contentType = ContentType.binary;
         }
       }

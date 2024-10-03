@@ -11,6 +11,7 @@ class InputOutputModel {
   late Responsive _responsive;
   bool _isDone = false;
   bool _isClosed = false;
+  bool _isInternalErrorCall = false;
   bool isWebsocket = false;
   int _downloadSpeedPerKb = 10000;
   WebSocket? webSocket;
@@ -59,6 +60,10 @@ class InputOutputModel {
 
   Future<void> send(dynamic data){
     return _responsive.send(data);
+  }
+
+  void setResponseAsFile({String? fileName, File? file}){
+    ServeFile.setHeaderAsFile(this, fileName: fileName, file: file);
   }
 
   Future<dynamic> close() async {
