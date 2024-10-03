@@ -195,15 +195,15 @@ class PowerServer {
 
 
     /// --- after response done
-    unawaited(inOut.request.response.done.then((dynamic _) {
+    unawaited(inOut.request.response.done.then((dynamic _) async {
       inOut.isDone = true;
 
       for (final doneListener in _onDoneListeners) {
-        doneListener(inOut);
+        await doneListener(inOut);
       }
 
       InOutStore.releaseStore(inOut.hashCode);
-      logHandler?.call('D05: Response sent to client.', LogType.debug, inOut: inOut);
+      logHandler?.call('D05: Response sent to client. [${inOut.request.uri}] status:[${inOut.response.statusCode}] ${this.hashCode}', LogType.debug, inOut: inOut);
     }));
 
 
@@ -230,7 +230,7 @@ class PowerServer {
           inOut.routeMatch = match;
           logHandler?.call('D03: current matched route: ${match.methodRoute.route}', LogType.debug, inOut: inOut);
 
-          /// this line is handler for inputs
+          /// ********** this line is handler for inputs **************
           await match.methodRoute.handler.call(inOut);
         }
 

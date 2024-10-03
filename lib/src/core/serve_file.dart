@@ -18,7 +18,6 @@ class ServeFile {
 
     inOut.response.bufferOutput = false;
 
-
     inOut.response.headers.add('Accept-Ranges', 'bytes');
     inOut.response.headers.add('Content-Encoding', 'identity');
     inOut.response.headers.set('X-Powered-By', 'Dart, power_server, avicenna');
@@ -40,7 +39,6 @@ class ServeFile {
       inOut.response.setDownloadHeader(filename: _getFileName(file.path));
     }
 
-
     /// ETag or LastModified
     if(ifRange != null && ifRange.isNotEmpty) {
       inOut.response.headers.set('ETag', ifRange);
@@ -48,7 +46,6 @@ class ServeFile {
     else {
       inOut.response.headers.set('Last-Modified', formattedModified);
     }
-
 
     if(_isEmptyOrNull(range)) {
       final len = await file.length();
@@ -69,7 +66,6 @@ class ServeFile {
       }
 
       inOut._accessFile!.closeSync();
-      return; //await inOut.response.addStream(file.openRead());
     }
 
     /// if part
@@ -115,7 +111,7 @@ class ServeFile {
       }
 
       inOut._accessFile!.closeSync();
-      return; //await inOut.response.addStream(file.openRead(r1, r2+1));
+      //return await inOut.response.addStream(file.openRead(r1, r2+1));
     }
   }
 
