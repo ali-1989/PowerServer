@@ -95,18 +95,18 @@ class HttpBodyHandler extends StreamTransformerBase<HttpRequest, HttpRequestBody
           switch (contentType.subType) {
             case 'json':
               final body = await asText(stream, contentType, utf8);
-              return HttpBody('json', jsonDecode(body.body as String));
+              return HttpBody(HttpBodyType.json, jsonDecode(body.body as String));
 
             case 'x-www-form-urlencoded':
               final body = await asText(stream, contentType, ascii);
               final map = Uri.splitQueryString(body.body as String, encoding: defaultEncoding);
-              final result = <dynamic, dynamic>{};
+              final result = <FormBody>[];
 
               for (final key in map.keys) {
-                result[key] = map[key];
+                result.add(StringFormBody(key, map[key]?? ''));
               }
 
-              return HttpBody('form', result);
+              return HttpBody(HttpBodyType.form, result);
 
             default:
               break;
@@ -159,7 +159,7 @@ class HttpBodyHandler extends StreamTransformerBase<HttpRequest, HttpRequestBody
     }
 
     final body = HttpBodyFileUpload(ContentType.binary, 'binary', p.basename(f.path), f);
-    return HttpBody('binary', body);
+    return HttpBody(HttpBodyType.binaryFile, body);
   }
 
   static Future<HttpBody> asText(Stream<List<int>> stream, ContentType contentType, Encoding defaultEncoding) async {
@@ -173,11 +173,11 @@ class HttpBodyHandler extends StreamTransformerBase<HttpRequest, HttpRequestBody
     encoding ??= defaultEncoding;
 
     dynamic buffer = await encoding.decoder.bind(stream).fold<dynamic>(StringBuffer(), (dynamic buffer, data) => buffer..write(data));
-    return HttpBody('text', buffer.toString());
+    return HttpBody(HttpBodyType.text, buffer.toString());
   }
 
   static Future<HttpBody> asFormData(Stream<List<int>> stream, ContentType contentType, Encoding defaultEncoding, InputOutputModel? inOut) async {
-    mapper(HttpMultipartFormData multipart) async {
+    Future<List> partListMapper(HttpMultipartFormData multipart) async {
       dynamic data;
 
       if (multipart.isText) {
@@ -220,20 +220,28 @@ class HttpBodyHandler extends StreamTransformerBase<HttpRequest, HttpRequestBody
 
     final transformer = MimeMultipartTransformer(contentType.parameters['boundary']!);
 
-    final values1 = transformer.bind(stream).map((part) =>
+    final parts = transformer.bind(stream).map((part) =>
         HttpMultipartFormData.parse(part, defaultEncoding: defaultEncoding));
 
-    final values2 = await values1.map(mapper) //.cast<Future<List>?>()
+    final onePart = await parts.map(partListMapper) //.cast<Future<List>?>()
         .toList().catchError((e){return <Future<List>>[];});
 
-    final parts = await Future.wait(values2);
-    final map = <String, dynamic>{};
+    final splits = await Future.wait(onePart);
+    final result = <FormBody>[];
 
-    for (final part in parts) {
-      map[part[0] as String] = part[1]; // Override existing entries.
+    for (final part in splits) {
+      final name = part[0] as String;
+      final data = part[1];
+
+      if(data is String){
+        result.add(StringFormBody(name, data));
+      }
+      else {
+        result.add(FileFormBody(name, data));
+      }
+      //map[part[0] as String] = part[1]; // Override existing entries.
     }
 
-    return HttpBody('form', map);
+    return HttpBody(HttpBodyType.form, result);
   }
 }
-

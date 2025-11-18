@@ -4,12 +4,11 @@ class ServeFile {
   static final RegExp _rangeRex = RegExp(r'^bytes=\s*\d*-\d*(,\d*-\d*)*$');
 
   static void setHeaderAsFile(InputOutputModel inOut, {String? fileName, File? file}){
-
     inOut.response.bufferOutput = false;
 
     inOut.response.headers.add('Accept-Ranges', 'bytes');
     inOut.response.headers.add('Content-Encoding', 'identity');
-    inOut.response.headers.set('X-Powered-By', 'Dart, power_server, avicenna');
+    inOut.response.headers.set('X-Powered-By', 'Dart, power_server');
 
     final fName = fileName ?? file!.path.split(p.separator).last;
     final fileFormat = fName.split('.').last;
@@ -54,7 +53,9 @@ class ServeFile {
       inOut.response.headers.set(HttpHeaders.contentLengthHeader, len);
       inOut._accessFile = await file.open();
 
-      int count = min(104 * inOut._downloadSpeedPerKb, len); // 104 * (100 mills * 10) = 1 kb/sec
+      inOut.server.fileHeaderController?.call(inOut, inOut.response.headers, file.path);
+
+      int count = min(104 * inOut._downloadSpeedPerKb, len); // (104 (is 100 mills) * 1 byte) * 10 times in 1 sec = 1 kb/sec
       int pos = 0;
 
       while(pos < len){
@@ -95,6 +96,8 @@ class ServeFile {
       inOut.response.statusCode = 206;
 
       inOut._accessFile = await file.open();
+
+      inOut.server.fileHeaderController?.call(inOut, inOut.response.headers, file.path);
 
       contentLen = min(fileLen, contentLen);
       int count = min(104 * inOut._downloadSpeedPerKb, contentLen); // 104 * (100 mills * 10) = 1 kb/sec

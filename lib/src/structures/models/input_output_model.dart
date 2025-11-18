@@ -8,12 +8,13 @@ class InputOutputModel {
   PowerServer server;
   HttpRequest request;
   HttpResponse response;
+  HttpRequestBody? _requestBody;
   late Responsive _responsive;
   bool _isDone = false;
   bool _isClosed = false;
   bool _isInternalErrorCall = false;
   bool isWebsocket = false;
-  int _downloadSpeedPerKb = 10000;
+  int _downloadSpeedPerKb = 0; //this is set later
   WebSocket? webSocket;
   RandomAccessFile? _accessFile;
   PrepareFileUploadPath? _prepareFileUploadPath;
@@ -36,18 +37,26 @@ class InputOutputModel {
   }
 
   PrepareFileUploadPath? get prepareFileUploadPath => _prepareFileUploadPath;
+
   set prepareFileUploadPath (PrepareFileUploadPath? handler){
     _prepareFileUploadPath = handler;
   }
 
   Future<HttpBodyFileUpload?> getUploadedFile(String name) async {
-    return (await bodyAsJsonMap)[name];
+    final form = await bodyAsForm;
+
+    try {
+      return form.firstWhere((elm) => elm.partName == name)?.data;
+    }
+    catch (e){
+      return null;
+    }
   }
 
-  /// [kbPerSec] is unit of speed for download. min is 1 and max is 1000000.
+  /// [kbPerSec] is unit of speed for download. min is 1 and max is 1000000 KB.
   void setDownloadSpeed(int kbPerSec){
     if(kbPerSec < 1 || kbPerSec > 1000000){
-      throw Exception('download speed must be between 1 to 1000000.');
+      throw Exception('download speed must be between 1 to 1,000,000 KB.');
     }
 
     _downloadSpeedPerKb = kbPerSec;
@@ -120,7 +129,7 @@ class InputOutputModel {
   StackTrace? stackTrace;
   dynamic _cachedBody;
 
-  Future<Object?> get body async {
+  FutureOr<dynamic> get body async {
     if (_cachedBody != null) {
       return _cachedBody;
     }
@@ -129,11 +138,12 @@ class InputOutputModel {
       return null;
     }
 
-    _cachedBody = (await HttpBodyHandler.processRequest(request, this)).body;
+    _requestBody = await HttpBodyHandler.processRequest(request, this);
+    _cachedBody = _requestBody!.body;
     return _cachedBody;
   }
 
-  /// Parse the body, and convert it to a json map
+  /// Parse the body, and convert it to a json map if can.
   Future<Map<String, dynamic>> get bodyAsJsonMap async {
     final t = await body;
 
@@ -148,8 +158,20 @@ class InputOutputModel {
     return {};
   }
 
-  /// Parse the body, and convert it to a json list
-  Future<List<dynamic>> get bodyAsJsonList async => (await body) as List;
+  Future<List<FormBody>> get bodyAsForm async {
+    final t = await body;
+
+    if(t is List && t.isNotEmpty && t[0] is FormBody){
+      return t as List<FormBody>;
+    }
+
+    return [];
+  }
+
+  Future<HttpBodyType> get bodyType async {
+    await body;
+    return _requestBody!.type;
+  }
 
   static void _startCloseSocketsService(PowerServer powerServer){
     if(_timer != null && _timer!.isActive){

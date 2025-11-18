@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:power_server/power_server.dart';
 import 'package:power_server/src/body_parser/http_body_file_upload.dart';
 import 'package:power_server/src/core/in_out_store.dart';
 import 'package:power_server/src/core/method_route.dart';
@@ -30,6 +31,7 @@ part 'package:power_server/src/structures/models/input_output_model.dart';
 typedef RouteHandler = FutureOr<void> Function(InputOutputModel inOut);
 typedef ErrorHandler = FutureOr<void> Function(Object error, StackTrace? stackTrace, InputOutputModel inOut);
 typedef FileDownloadHandler = FutureOr<bool> Function(InputOutputModel inOut, File file);
+typedef FileHeaderControlHandler = void Function(InputOutputModel inOut, HttpHeaders headers, String filePath);
 typedef LogHandler = void Function(String text, LogType type, {InputOutputModel? inOut});
 typedef PrepareFileUploadPath = FutureOr<String> Function(InputOutputModel inOut, FileUploadFields fields);
 ///=============================================================================
@@ -64,8 +66,10 @@ class PowerServer {
   final _beforeRoutingListeners = <RouteHandler>[];
   final _onDoneListeners = <RouteHandler>[];
 
-  int downloadSpeedKbPerSec = 10000; // 10000: 10 MB/s
+  /// its general download speed, can change this for any request.
+  int downloadSpeedKbPerSec = 10000; // 10,000: 10 MB/s
   FileDownloadHandler? fileDownloadChecker;
+  FileHeaderControlHandler? fileHeaderController;
 
   late String currentPath;
 
@@ -144,7 +148,7 @@ class PowerServer {
       cancelOnError: false,
     );
 
-    logHandler?.call('PowerServer: HTTP Server listening on ${server.address}:${server.port}, currentPath:$currentPath', LogType.info);
+    logHandler?.call('PowerServer: HTTP Server listening on ${server.address.address}:${server.port}, currentPath:$currentPath', LogType.info);
     InputOutputModel._startCloseSocketsService(this);
 
     return httpServer = server;
@@ -205,8 +209,8 @@ class PowerServer {
         await doneListener(inOut);
       }
 
-      InOutStore.releaseStore(inOut.hashCode);
-      logHandler?.call('D05: Response sent to client. [${inOut.request.uri}] status:[${inOut.response.statusCode}] ${this.hashCode}', LogType.debug, inOut: inOut);
+      InOutStore.releaseStore(inOut.hashCode); //${this.hashCode}
+      logHandler?.call('D05: Response sent to client. [${inOut.request.uri}] status:[${inOut.response.statusCode}]', LogType.debug, inOut: inOut);
     }));
 
 
@@ -371,17 +375,32 @@ class PowerServer {
   }
 
   static RouteHandler corsHandler({
-    int age = 86400,
+    int? age, //86400
     String methods = 'POST, GET, PUT, DELETE, OPTIONS, HEAD, PATCH',
     String headers = '*',
     String origin = '*',
+    bool setClientAsOrigin = false,
   }) {
     return (InputOutputModel inOut) {
-      inOut.response.headers.set('Access-Control-Allow-Origin', origin);
       inOut.response.headers.set('Access-Control-Allow-Methods', methods);
       inOut.response.headers.set('Access-Control-Allow-Headers', headers);
+      /// allow js to access x-headers
       inOut.response.headers.set('Access-Control-Expose-Headers', headers);
-      inOut.response.headers.set('Access-Control-Max-Age', age);
+
+      if(age != null){
+        inOut.response.headers.set('Access-Control-Max-Age', age);
+      }
+
+      if(setClientAsOrigin){
+        // inOut.request.connectionInfo?.remoteAddress
+        var clientOrigin = inOut.request.headers.value('origin');
+        clientOrigin ??= '*';
+
+        inOut.response.headers.set('Access-Control-Allow-Origin', clientOrigin);
+      }
+      else if(origin != null){
+        inOut.response.headers.set('Access-Control-Allow-Origin', origin);
+      }
 
       /*if (inOut.request.method == 'OPTIONS') {
         inOut.response.close();

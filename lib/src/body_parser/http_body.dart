@@ -5,6 +5,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:power_server/power_server.dart';
+
 
 
 /// A handler for processing and collecting HTTP message data in to an
@@ -94,7 +96,7 @@ import 'dart:io';
 /// A HTTP content body produced by [HttpBodyHandler] for either [HttpRequest]
 /// or [HttpClientResponse].
 class HttpBody {
-  final String type;
+  final HttpBodyType type;
   final dynamic body;
 
   HttpBody(this.type, this.body);
@@ -112,4 +114,29 @@ class HttpClientResponseBody extends HttpBody {
 
   HttpClientResponseBody(this.response, HttpBody body)
       : super(body.type, body.body);
+}
+///==============================================================
+enum HttpBodyType {
+  text, json, binaryFile, form
+}
+///==============================================================
+abstract class FormBody<T> {
+  late String partName;
+  late T data;
+
+  FormBody(this.partName);
+}
+
+class StringFormBody extends FormBody<String> {
+  late String data;
+
+  StringFormBody(super.partName, this.data);
+}
+
+class FileFormBody extends FormBody<HttpBodyFileUpload> {
+  late HttpBodyFileUpload data;
+
+  FileFormBody(super.partName, this.data);
+
+  HttpBodyFileUpload get file => data;
 }
