@@ -309,8 +309,8 @@
     }
   ],
   "generator": "pub",
-  "generatorVersion": "3.9.0",
+  "generatorVersion": "3.9.2",
   "flutterRoot": "file:///E:/Programming/SDKs/Flutter/last",
-  "flutterVersion": "3.35.2",
+  "flutterVersion": "3.35.7",
   "pubCache": "file:///E:/Programming/SDKs/Flutter/Pubs/Cache"
 }

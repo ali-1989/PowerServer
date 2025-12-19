@@ -12,7 +12,7 @@ class Responsive {
 
   Future<void> sendAndClose(dynamic data) async {
     await send(data);
-
+    
     /// close after sent
     if(isSend) {
       return _inOut.close();
@@ -22,6 +22,18 @@ class Responsive {
   // _inOut.response.reasonPhrase >> StateError
 
   Future<void> send(dynamic userData) async {
+    try{
+      await _send(userData);
+    }
+    catch (e, s){
+      _inOut.exception = e;
+      _inOut.stackTrace = s;
+      //_inOut.server.logHandler?.call('E: $e', LogType.error, inOut: _inOut);
+      _inOut.server.onInternalError?.call(e, s, _inOut);
+    }
+  }
+
+  Future<void> _send(dynamic userData) async {
     if(isSend) {
       return;
     }

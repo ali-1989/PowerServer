@@ -8,7 +8,7 @@ class ServeFile {
 
     inOut.response.headers.add('Accept-Ranges', 'bytes');
     inOut.response.headers.add('Content-Encoding', 'identity');
-    inOut.response.headers.set('X-Powered-By', 'Dart, power_server');
+    inOut.response.headers.add('X-Powered-By', 'Dart, power_server');
 
     final fName = fileName ?? file!.path.split(p.separator).last;
     final fileFormat = fName.split('.').last;
@@ -26,6 +26,7 @@ class ServeFile {
   }
 
   static Future<void> serveFile(File file, InputOutputModel inOut) async {
+
     if(!(await inOut.server.fileDownloadChecker?.call(inOut, file)?? true)){
       inOut.response.statusCode = 403;
       inOut.response.write('Can not access.');
@@ -39,18 +40,18 @@ class ServeFile {
 
     /// ETag or LastModified
     if(ifRange != null && ifRange.isNotEmpty) {
-      inOut.response.headers.set('ETag', ifRange);
+      inOut.response.headers.add('ETag', ifRange);
     }
     else {
       final modifier = await file.lastModified();
       final formattedModified = DF.formatDate(modifier.toUtc(), [DF.D, ', ', DF.d, ' ', DF.M, ' ', DF.yyyy, ' ', DF.HH, ':', DF.nn, ':', DF.ss, ' ', DF.z]);
 
-      inOut.response.headers.set('Last-Modified', formattedModified);
+      inOut.response.headers.add('Last-Modified', formattedModified);
     }
 
     if(_isEmptyOrNull(range)) {
       final len = await file.length();
-      inOut.response.headers.set(HttpHeaders.contentLengthHeader, len);
+      inOut.response.headers.add(HttpHeaders.contentLengthHeader, len);
       inOut._accessFile = await file.open();
 
       inOut.server.fileHeaderController?.call(inOut, inOut.response.headers, file.path);
@@ -91,8 +92,8 @@ class ServeFile {
       final responseRange = 'bytes $r1-$r2/$fileLen';
       var contentLen = (r2-r1)+1;
 
-      inOut.response.headers.set(HttpHeaders.contentRangeHeader, responseRange);
-      inOut.response.headers.set(HttpHeaders.contentLengthHeader, contentLen.toString());
+      inOut.response.headers.add(HttpHeaders.contentRangeHeader, responseRange);
+      inOut.response.headers.add(HttpHeaders.contentLengthHeader, contentLen.toString());
       inOut.response.statusCode = 206;
 
       inOut._accessFile = await file.open();
